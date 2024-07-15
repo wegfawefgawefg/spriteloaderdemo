@@ -1,20 +1,21 @@
+use audio::{load_songs, load_sounds};
+use raylib::{
+    audio::{Music, RaylibAudio, Sound},
+    color::Color,
+    drawing::RaylibDraw,
+    ffi::KeyboardKey,
+};
+
 use draw::draw_entities;
 use entity::{Entity, EntityType};
-use glam::{UVec2, Vec2};
+use glam::Vec2;
 use graphics::Graphics;
 use rand::Rng;
-use raylib::ffi::{SetTraceLogLevel, TraceLogLevel};
-use raylib::prelude::*;
-use serde_json::Value;
 use settings::SCREEN_DIMS;
 use sprite::{Sprite, SpriteAnimator};
 use state::State;
-use std::fs::File;
-use std::io::BufReader;
-use std::path::Path;
-use strum::{EnumCount, IntoEnumIterator};
-use strum_macros::EnumIter;
 
+pub mod audio;
 pub mod draw;
 pub mod entity;
 pub mod graphics;
@@ -29,17 +30,25 @@ fn main() -> Result<(), String> {
         .title("Auto-Managed Textures Sprite System")
         .build();
 
-    // set window position
     rl.set_window_position(500, 500);
-    // set fps to 144
     rl.set_target_fps(144);
-    // hide mouse
     rl.hide_cursor();
 
-    let asset_folder = "./assets";
-    let mut graphics = Graphics::new(&mut rl, &thread, asset_folder)?;
-
+    let sprites_folder = "./assets/sprites";
+    let mut graphics = Graphics::new(&mut rl, &thread, sprites_folder)?;
+    let rl_audio_device = match RaylibAudio::init_audio_device() {
+        Ok(rl_audio_device) => rl_audio_device,
+        Err(e) => {
+            println!("Error initializing audio device: {}", e);
+            std::process::exit(1);
+        }
+    };
+    let songs = audio::load_songs(&rl_audio_device);
+    let sounds = audio::load_sounds(&rl_audio_device);
+    let mut audio = audio::Audio::new(songs, sounds);
     let mut state = State::new();
+
+    audio.play_song(audio::Song::Playing);
 
     // reticle
     let reticle_entity = Entity {
@@ -55,8 +64,11 @@ fn main() -> Result<(), String> {
         },
         follows: None,
         hp: 10.0,
+        active: true,
+        friction: None,
+        expire_in: None,
     };
-    let reticle_id = state.add_entity(reticle_entity);
+    state.add_entity(reticle_entity);
 
     // apple
     let rng = &mut rand::thread_rng();
@@ -76,6 +88,9 @@ fn main() -> Result<(), String> {
         },
         follows: None,
         hp: 10.0,
+        active: true,
+        friction: None,
+        expire_in: None,
     });
 
     // trees
@@ -100,7 +115,10 @@ fn main() -> Result<(), String> {
                 scale,
             },
             follows: None,
-            hp: 10.0,
+            hp: 4.0,
+            active: true,
+            friction: None,
+            expire_in: None,
         };
         entity.sprite_animator.randomize_frame(&graphics.sprites);
         state.add_entity(entity);
@@ -125,20 +143,25 @@ fn main() -> Result<(), String> {
             },
             follows,
             hp: 10.0,
+            active: true,
+            friction: None,
+            expire_in: None,
         });
         last_man = Some(last_entity_id);
     }
 
     while !rl.window_should_close() {
+        audio.update_current_song_stream_data();
+
         if rl.is_key_pressed(KeyboardKey::KEY_R) {
-            match graphics.reload(&mut rl, &thread, asset_folder) {
+            match graphics.reload(&mut rl, &thread, sprites_folder) {
                 Ok(_) => println!("Reloaded assets"),
                 Err(e) => println!("Failed to reload assets: {}", e),
             }
         }
 
         // arrow keys to move entity 0
-        let vel = 1000.0;
+        let vel = 100.0;
         if rl.is_key_down(KeyboardKey::KEY_RIGHT) {
             state.entities[0].velocity.x = vel;
         } else if rl.is_key_down(KeyboardKey::KEY_LEFT) {
@@ -157,54 +180,11 @@ fn main() -> Result<(), String> {
         // set entity 0 position to mouse
         state.entities[0].position = Vec2::new(rl.get_mouse_x() as f32, rl.get_mouse_y() as f32);
 
-        // make entity 2 follow entity 1
-        // let target = state.entities[0].position;
-        // let dir = target - state.entities[1].position;
-        // // dir can be zero if target is the same as position, then normalize fails
-        // if dir.length() > 0.0 {
-        //     state.entities[1].velocity = dir.normalize() * vel * 0.5;
-        // } else {
-        //     state.entities[1].velocity = Vec2::ZERO;
-        // }
-
-        // make each entity follow its follow entity if the distance is between them is greater than 2
-        let dist = 8.0;
-        for i in 1..state.entities.len() {
-            if let Some(follows) = state.entities[i].follows {
-                let target = state.entities[follows].position;
-                // seperate axis logic
-                // let x_diff = target.x - state.entities[i].position.x;
-                // let y_diff = target.y - state.entities[i].position.y;
-                // if x_diff > dist {
-                //     state.entities[i].velocity.x = vel;
-                // } else if x_diff < -dist {
-                //     state.entities[i].velocity.x = -vel;
-                // } else {
-                //     state.entities[i].velocity.x = 0.0;
-                // }
-                // if y_diff > dist {
-                //     state.entities[i].velocity.y = vel;
-                // } else if y_diff < -dist {
-                //     state.entities[i].velocity.y = -vel;
-                // } else {
-                //     state.entities[i].velocity.y = 0.0;
-                // }
-
-                // unified axis logic
-                let dir = target - state.entities[i].position;
-                if dir.length() > dist {
-                    state.entities[i].velocity = dir.normalize() * vel;
-                } else {
-                    state.entities[i].velocity = Vec2::ZERO;
-                }
-            }
-        }
-
         let dt = rl.get_frame_time();
-        step::step(&mut rl, &mut state, &graphics.sprites, dt);
+        step::step(&mut rl, &mut state, &mut audio, &mut graphics, dt);
 
         let mut d = rl.begin_drawing(&thread);
-        d.clear_background(Color::new(150, 150, 200, 255));
+        d.clear_background(Color::new(134, 163, 118, 255));
 
         let man_walk = graphics.get_sprite_data(Sprite::ManWalk);
         d.draw_text(

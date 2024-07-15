@@ -8,6 +8,7 @@ pub enum EntityType {
     Tree,
     Reticle,
     Apple,
+    Log,
 }
 
 #[derive(Debug)]
@@ -19,6 +20,9 @@ pub struct Entity {
     pub sprite_animator: SpriteAnimator,
     pub follows: Option<usize>,
     pub hp: f32,
+    pub friction: Option<f32>,
+    pub expire_in: Option<f32>,
+    pub active: bool,
 }
 
 pub struct Bounds {
@@ -45,6 +49,9 @@ impl Entity {
             sprite_animator: SpriteAnimator::new(sprite),
             follows: None,
             hp: 100.0,
+            friction: None,
+            expire_in: None,
+            active: true,
         }
     }
 

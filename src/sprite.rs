@@ -10,10 +10,12 @@ pub enum Sprite {
     ManWalk,
     ManIdle,
     Tree,
+    TreeStump,
     Reticle,
     Apple,
     AxeIdle,
     AxeCutting,
+    Log,
 }
 
 impl Sprite {
@@ -26,6 +28,8 @@ impl Sprite {
             Sprite::Apple => "apple",
             Sprite::AxeIdle => "axe_idle",
             Sprite::AxeCutting => "axe_cutting",
+            Sprite::TreeStump => "tree_stump",
+            Sprite::Log => "log",
         }
     }
 }
