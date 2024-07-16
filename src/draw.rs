@@ -5,7 +5,7 @@ use raylib::{
     math::{Rectangle, Vector2},
 };
 
-use crate::{entity::Entity, graphics::Graphics, state::State};
+use crate::{entity::Entity, graphics::Graphics, settings::SCREEN_DIMS, state::State};
 
 pub fn draw_entities(d: &mut RaylibDrawHandle, graphics: &Graphics, state: &State) {
     // Create a vector of mutable references to entities
@@ -33,13 +33,24 @@ pub fn draw_entities(d: &mut RaylibDrawHandle, graphics: &Graphics, state: &Stat
     });
 
     // Draw shadows of the sorted entities
-    let shadow_angle = 4.0; // Angle of the shadow in degrees
-    let shadow_scale_y = 0.5; // Scale factor for shadow height
+    // let shadow_angle = 4.0; // Angle of the shadow in degrees
+    //get time
+    let time = d.get_time();
+    // let shadow_angle = ((time * 100.0) % 360.0) as f32; // Angle of the shadow in degrees
+    // it needs to oscilate between -20 and 20
+    let shadow_angle = 15.0 * (time * 4.0).sin() as f32;
+    // let shadow_scale_y = 0.5; // Scale factor for shadow height
+    // it needs to oscilate between 0.1 and 2.0
+    let shadow_min_scale_y = 0.2;
+    let shadow_max_scale_y = 0.8;
+    let shadow_scale_y =
+        shadow_min_scale_y + (shadow_max_scale_y - shadow_min_scale_y) * (time * 5.0).sin() as f32;
     for entity in sorted_entities.iter() {
         let sprite_data = graphics.get_sprite_data(entity.sprite_animator.sprite);
         let frame = &sprite_data.frames[entity.sprite_animator.current_frame];
 
-        let sprite_scaled_size = sprite_data.size.as_vec2() * entity.sprite_animator.scale;
+        let scale = entity.sprite_animator.scale;
+        let sprite_scaled_size = sprite_data.size.as_vec2() * scale;
 
         // Calculate shadow dimensions
         let shadow_width = sprite_scaled_size.x;
@@ -76,8 +87,8 @@ pub fn draw_entities(d: &mut RaylibDrawHandle, graphics: &Graphics, state: &Stat
         let sprite_data = graphics.get_sprite_data(entity.sprite_animator.sprite);
         let frame = &sprite_data.frames[entity.sprite_animator.current_frame];
         let position = entity.position;
-
-        let sprite_scaled_size = sprite_data.size.as_vec2() * entity.sprite_animator.scale;
+        let scale = entity.sprite_animator.scale;
+        let sprite_scaled_size = sprite_data.size.as_vec2() * scale;
         // we use feet style origin, so the origin is at the bottom center of the sprite
         let origin = Vec2::new(sprite_scaled_size.x / 2.0, sprite_scaled_size.y);
         // draw a debug blue rect at the origin of the sprite
@@ -100,8 +111,8 @@ pub fn draw_entities(d: &mut RaylibDrawHandle, graphics: &Graphics, state: &Stat
             Rectangle::new(
                 draw_position.x,
                 draw_position.y,
-                sprite_data.size.x as f32 * entity.sprite_animator.scale,
-                sprite_data.size.y as f32 * entity.sprite_animator.scale,
+                sprite_data.size.x as f32 * scale,
+                sprite_data.size.y as f32 * scale,
             ),
             Vector2::zero(),
             0.0,

@@ -88,16 +88,20 @@ pub fn do_touch_apple(state: &mut State, audio: &mut Audio) {
                 Vec2::new(SCREEN_DIMS.x as f32 / 2.0, SCREEN_DIMS.y as f32 / 2.0)
             };
 
+            let rng = &mut rand::thread_rng();
+            let max_scale = 10.0;
+            let scale = rng.gen_range(4.0..max_scale);
+            let base_size = Vec2::new(2.0, 4.0);
             state.add_entity(Entity {
                 entity_type: EntityType::Man,
                 position: pos,
                 velocity: Vec2::new(0.0, 0.0),
-                size: Vec2::new(16.0, 24.0),
+                size: base_size * scale,
                 sprite_animator: SpriteAnimator {
                     sprite: Sprite::ManIdle,
                     current_frame: 0,
                     current_time: 0.0,
-                    scale: 6.0,
+                    scale,
                 },
                 follows: man_entity,
                 hp: 10.0,
@@ -253,7 +257,7 @@ pub fn prune_inactive_entities(state: &mut State) {
 
 pub fn do_following(state: &mut State) {
     let follow_dist = 10.0;
-    let vel = 100.0;
+    let vel = 1000.0;
     for i in 1..state.entities.len() {
         if let Some(follows) = state.entities[i].follows {
             if follows >= state.entities.len() {
